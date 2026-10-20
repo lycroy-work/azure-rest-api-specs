@@ -503,6 +503,464 @@ union RaiPolicyMode {
 }
 
 /**
+ * The public representation used by a RAI policy body.
+ */
+@added(Versions.v2026_09_15_preview)
+union RaiPolicyFormat {
+  string,
+
+  /** A legacy content-filter policy. */
+  ContentFilters: "ContentFilters",
+
+  /** An Agent Control Specification policy. */
+  ACS: "ACS",
+}
+
+/**
+ * The transport encoding of reusable Rego source.
+ */
+@added(Versions.v2026_09_15_preview)
+union RaiRegoEncoding {
+  string,
+
+  /** The Rego property contains plain UTF-8 source. */
+  None: "None",
+
+  /** The Rego property contains Base64-encoded UTF-8 source. */
+  Base64: "Base64",
+}
+
+/** A customer-visible reference to a subscription-level external safety provider. */
+@added(Versions.v2026_09_15_preview)
+model RaiPolicyCustomExternalSafetyProviderReference {
+  /** The registered external safety-provider name. */
+  @minLength(1)
+  externalSafetyProviderName: string;
+
+  /** Optional managed identity used when invoking the external safety provider. */
+  managedIdentityResourceId?: Azure.Core.armResourceIdentifier;
+
+  /** The request stage at which the provider runs. */
+  source: RaiPolicyContentSource;
+
+  /** Whether a provider rejection blocks the request. */
+  blocking?: boolean;
+}
+
+/** The policy language supported by the Unified Moderate AACS host profile. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsPolicyDefinitionType {
+  string,
+
+  /** A policy evaluated by Rego. */
+  Rego: "rego",
+}
+
+/** The representation sent to AACS moderation capabilities. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsModerationSubjectFormat {
+  string,
+
+  /** Moderates the selected policy target as text. */
+  Text: "text",
+
+  /** Moderates the canonical JSON representation of the selected policy target. */
+  CanonicalJson: "canonical_json",
+}
+
+/** Harm categories supported by the Unified Moderate text profile. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsHarmCategory {
+  string,
+
+  /** Hate-related content. */
+  Hate: "Hate",
+
+  /** Self-harm-related content. */
+  SelfHarm: "SelfHarm",
+
+  /** Sexual content. */
+  Sexual: "Sexual",
+
+  /** Violent content. */
+  Violence: "Violence",
+
+  /** Prompt-injection content. */
+  PromptInjection: "PromptInjection",
+
+  /** Protected text material. */
+  ProtectedMaterialText: "ProtectedMaterialText",
+
+  /** Protected source-code material. */
+  ProtectedMaterialCode: "ProtectedMaterialCode",
+}
+
+/** A Rego policy definition in the Unified Moderate AACS host profile. */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsRegoPolicyDefinition {
+  /** The policy language. This profile supports only Rego. */
+  type: RaiAcsPolicyDefinitionType;
+
+  /** The fully qualified Rego query evaluated for this policy. */
+  @minLength(1)
+  query: string;
+}
+
+/** Selects one AACS harm-detector configuration. */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsHarmConfiguration {
+  /** The logical harm category exposed under input.snapshot.moderation.harm. */
+  category: RaiAcsHarmCategory;
+
+  /**
+   * The AACS detector configuration identifier. When supplied, it must be the
+   * configuration supported for the selected category.
+   */
+  @encodedName("application/json", "harm_config_id")
+  @minLength(1)
+  harmConfigId?: string;
+}
+
+/**
+ * AACS-specific moderation work performed before ACS evaluates the selected
+ * Rego query.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsModerationBindingExtension {
+  /** How the selected policy target is represented to moderation capabilities. */
+  @encodedName("application/json", "subject_format")
+  subjectFormat: RaiAcsModerationSubjectFormat;
+
+  /** Harm signals requested for this intervention point. */
+  @encodedName("application/json", "harm_configs")
+  @identifiers(#["category"])
+  harmConfigs: RaiAcsHarmConfiguration[];
+}
+
+/** Extensible kinds of ACS annotator dispatchers. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsAnnotatorType {
+  string,
+
+  /** Obtains annotations from a classifier dispatcher. */
+  Classifier: "classifier",
+
+  /** Obtains annotations from a language-model dispatcher. */
+  Llm: "llm",
+
+  /** Obtains annotations from an external endpoint dispatcher. */
+  Endpoint: "endpoint",
+}
+
+/** A named ACS annotator declaration with host-defined configuration. */
+#suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS annotators permit extensible host-defined configuration"
+@added(Versions.v2026_09_15_preview)
+model RaiAcsAnnotatorDefinition {
+  ...Record<unknown>;
+
+  /** The dispatcher kind. Supported configuration is determined by the evaluation host. */
+  type: RaiAcsAnnotatorType;
+}
+
+/** Binds an annotator to a subject at one intervention point. The map key selects its declaration. */
+#suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS annotation bindings permit extensible host-defined configuration"
+@added(Versions.v2026_09_15_preview)
+model RaiAcsAnnotationBinding {
+  ...Record<unknown>;
+
+  /** The ACS path selecting the subject passed to the annotator. */
+  from: string;
+}
+
+/** Static policy metadata for one ACS tool catalog entry. */
+#suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS tool entries permit extensible policy metadata"
+@added(Versions.v2026_09_15_preview)
+model RaiAcsToolDefinition {
+  ...Record<unknown>;
+
+  /** Optional host-defined tool identifier. The catalog map key, not this value, controls tool lookup. */
+  @minLength(1)
+  id?: string;
+
+  /** Optional host-defined tool type. */
+  @minLength(1)
+  type?: string;
+
+  /** Human-readable policy metadata. */
+  description?: string;
+
+  /** Labels describing the sink or capability. */
+  @encodedName("application/json", "security_labels")
+  securityLabels?: string[];
+
+  /** Maximum sensitivity or host-defined clearance metadata. */
+  @minLength(1)
+  clearance?: string;
+}
+
+/**
+ * Identifies the logical policy evaluated at an ACS intervention point.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsPolicyBinding {
+  /** The logical policy identifier. */
+  @minLength(1)
+  id: string;
+
+  /** An optional intervention-specific Rego query override. */
+  @minLength(1)
+  query?: string;
+
+  /** Optional AACS moderation capabilities invoked before Rego evaluation. */
+  @encodedName("application/json", "aacs_moderation")
+  aacsModeration?: RaiAcsModerationBindingExtension;
+}
+
+/** Canonical policy targets supported by the Unified Moderate AACS host profile. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsPolicyTarget {
+  string,
+
+  /** Selects agent initialization data. */
+  AgentInitialization: "$snap.agent_init",
+
+  /** Selects the incoming user input. */
+  Input: "$snap.input",
+
+  /** Selects messages sent to the model. */
+  Messages: "$snap.messages",
+
+  /** Selects the model response. */
+  ModelResponse: "$snap.response",
+
+  /** Selects the assistant output. */
+  Output: "$snap.output",
+
+  /** Selects tool-call arguments. */
+  ToolArguments: "$snap.tool_call.args",
+
+  /** Selects a tool result. */
+  ToolResult: "$snap.tool_result.value",
+
+  /** Selects the agent session summary. */
+  AgentSummary: "$snap.summary",
+}
+
+/** Canonical target kinds supported by the Unified Moderate AACS host profile. */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsPolicyTargetKind {
+  string,
+
+  /** The target contains agent initialization data. */
+  AgentInitialization: "agent_init",
+
+  /** The target contains user input. */
+  UserInput: "user_input",
+
+  /** The target contains messages sent to the model. */
+  Messages: "messages",
+
+  /** The target contains a model response. */
+  ModelResponse: "model_response",
+
+  /** The target contains assistant output. */
+  AssistantOutput: "assistant_output",
+
+  /** The target contains tool-call arguments. */
+  ToolArguments: "tool_args",
+
+  /** The target contains a tool result. */
+  ToolResult: "tool_result",
+
+  /** The target contains the agent session summary. */
+  AgentSummary: "agent_summary",
+}
+
+/**
+ * Snapshot paths for selecting a tool catalog entry.
+ * The listed values are recognized by the Unified Moderate AACS host profile; other values are allowed for forward compatibility.
+ */
+@added(Versions.v2026_09_15_preview)
+union RaiAcsToolNameSelector {
+  string,
+
+  /** Selects the tool-call name from the canonical snapshot root. */
+  ToolCallName: "$snap.tool_call.name",
+
+  /** Selects the tool-call name through the snapshot-root alias. */
+  ToolCallNameAlias: "$.tool_call.name",
+}
+
+/**
+ * Binds one logical policy to an ACS intervention point.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsInterventionPoint {
+  /** The canonical Agent Hooks snapshot path projected as the policy target. */
+  @encodedName("application/json", "policy_target")
+  policyTarget: RaiAcsPolicyTarget;
+
+  /** The semantic kind of the projected policy target. */
+  @encodedName("application/json", "policy_target_kind")
+  policyTargetKind: RaiAcsPolicyTargetKind;
+
+  /** The logical policy evaluated at this intervention point. */
+  policy: RaiAcsPolicyBinding;
+
+  /** Optional annotator bindings keyed by declaration name. Results are available to Rego as input.annotations.<name>. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS defines annotations as a name-keyed map"
+  annotations?: Record<RaiAcsAnnotationBinding>;
+}
+
+/** Binds one logical policy to a tool-call intervention point. */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsToolInterventionPoint {
+  ...RaiAcsInterventionPoint;
+
+  /** Selects the tool catalog key from the raw Agent Hooks snapshot using an extensible snapshot path. */
+  @encodedName("application/json", "tool_name_from")
+  toolNameFrom?: RaiAcsToolNameSelector;
+}
+
+/** Optional ACS bindings for the eight Agent Hooks intervention points. */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsInterventionPoints {
+  /** The policy evaluated when the agent starts. */
+  @encodedName("application/json", "agent_startup")
+  agentStartup?: RaiAcsInterventionPoint;
+
+  /** The policy evaluated for user input. */
+  input?: RaiAcsInterventionPoint;
+
+  /** The policy evaluated before a model call. */
+  @encodedName("application/json", "pre_model_call")
+  preModelCall?: RaiAcsInterventionPoint;
+
+  /** The policy evaluated after a model call. */
+  @encodedName("application/json", "post_model_call")
+  postModelCall?: RaiAcsInterventionPoint;
+
+  /** The policy evaluated before a tool call. */
+  @encodedName("application/json", "pre_tool_call")
+  preToolCall?: RaiAcsToolInterventionPoint;
+
+  /** The policy evaluated after a tool call. */
+  @encodedName("application/json", "post_tool_call")
+  postToolCall?: RaiAcsToolInterventionPoint;
+
+  /** The policy evaluated for final output. */
+  output?: RaiAcsInterventionPoint;
+
+  /** The policy evaluated when the agent shuts down. */
+  @encodedName("application/json", "agent_shutdown")
+  agentShutdown?: RaiAcsInterventionPoint;
+}
+
+/**
+ * An Agent Control Specification manifest with Rego policies and optional annotators.
+ * Supported manifest versions and configurations are determined by the evaluation host.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiAcsManifest {
+  /** The declared Agent Control Specification manifest version. */
+  @encodedName("application/json", "agent_control_specification_version")
+  agentControlSpecificationVersion: string;
+
+  /** Non-policy manifest metadata. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS metadata is an extensible JSON object"
+  metadata?: Record<unknown>;
+
+  /** Named Rego policies in this manifest. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS defines policies as a name-keyed map"
+  policies: Record<RaiAcsRegoPolicyDefinition>;
+
+  /** ACS intervention-point bindings. At least one intervention point is required. */
+  @encodedName("application/json", "intervention_points")
+  interventionPoints: RaiAcsInterventionPoints;
+
+  /**
+   * Static tool catalog keyed by canonical tool name. The catalog may be omitted or empty when no
+   * tool selector is configured. A tool selector requires a non-empty catalog, and an unknown
+   * selected key fails closed.
+   */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS defines tools as a name-keyed extensible map"
+  tools?: Record<RaiAcsToolDefinition>;
+
+  /** Optional annotator declarations keyed by name. Omitted or empty maps request no annotator declarations. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "ACS defines annotators as a name-keyed map"
+  annotators?: Record<RaiAcsAnnotatorDefinition>;
+}
+
+/**
+ * References one reusable Rego resource on the same account.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiRegoReference {
+  /** The same-account Rego resource name. */
+  @pattern("^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,63}$")
+  @minLength(2)
+  @maxLength(64)
+  regoName: string;
+}
+
+/**
+ * Properties of an account-scoped reusable Rego resource.
+ */
+#suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" "Reusable Rego resources are synchronously persisted and do not expose provisioningState"
+@added(Versions.v2026_09_15_preview)
+model RaiRegoProperties {
+  /** How the Rego source is encoded on the wire. The default is None. */
+  encoding?: RaiRegoEncoding = RaiRegoEncoding.None;
+
+  /** Rego source in the selected transport encoding. */
+  @minLength(1)
+  rego: string;
+}
+
+/**
+ * Properties of a binding from an Azure resource to an ACS policy.
+ */
+#suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" "RAI bindings are synchronously persisted and do not expose provisioningState"
+@added(Versions.v2026_09_15_preview)
+model RaiBindingProperties {
+  /** A valid ARM resource ID of the resource to bind to the target RAI policy. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  boundResourceId: Azure.Core.armResourceIdentifier;
+
+  /** The same-account ACS policy name targeted by the binding. */
+  @pattern("^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+  targetPolicyName: string;
+}
+
+/** Conditional headers supported by RAI resource PUT operations. */
+@added(Versions.v2026_09_15_preview)
+model RaiResourcePutConditionalHeaders {
+  /** Proceed only when the current resource ETag matches this value. */
+  @header("If-Match")
+  ifMatch?: string;
+
+  /** Proceed only when no current resource ETag matches this value. */
+  @header("If-None-Match")
+  ifNoneMatch?: string;
+}
+
+/** Conditional headers supported by RAI resource DELETE operations. */
+@added(Versions.v2026_09_15_preview)
+model RaiResourceDeleteConditionalHeaders {
+  /** Proceed only when the current resource ETag matches this value. */
+  @header("If-Match")
+  ifMatch?: string;
+}
+
+/** ETag response header returned by RAI resource GET and PUT operations. */
+@added(Versions.v2026_09_15_preview)
+model RaiResourceEtagResponseHeader {
+  /** The entity tag for the returned resource representation. */
+  @header("ETag")
+  etagHeader?: string;
+}
+
+/**
  * Level at which content is filtered.
  */
 union ContentLevel {
@@ -3590,6 +4048,25 @@ model EncryptionScopeProperties extends Encryption {
 #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-provisioning-state" "Provisioning state for 'RaiPolicyProperties' includes custom states beyond ARM standard values"
 model RaiPolicyProperties {
   /**
+   * The policy representation. Omission selects ContentFilters when creating a policy. ACS policy
+   * creation and replacement require ACS.
+   */
+  @added(Versions.v2026_09_15_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  format?: RaiPolicyFormat;
+
+  /** The ACS manifest. Required by service validation when format is ACS. */
+  @added(Versions.v2026_09_15_preview)
+  acs?: RaiAcsManifest;
+
+  /**
+   * Reusable same-account Rego resources loaded with the ACS manifest.
+   */
+  @added(Versions.v2026_09_15_preview)
+  @identifiers(#["regoName"])
+  acsRegos?: RaiRegoReference[];
+
+  /**
    * Content Filters policy type.
    */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-resource-duplicate-property" "'type' is intentionally duplicated on 'RaiPolicyProperties' for backward compatibility"
@@ -3630,6 +4107,11 @@ model RaiPolicyProperties {
    */
   @identifiers(#[])
   safetyProviders?: SafetyProviderConfig[];
+
+  /** Optional external safety-provider references used by this policy. */
+  @added(Versions.v2026_09_15_preview)
+  @identifiers(#["externalSafetyProviderName", "source"])
+  customExternalSafetyProviders?: RaiPolicyCustomExternalSafetyProviderReference[];
 
   /**
    * Egress (outbound network) policy controlling which external endpoints sandboxed
@@ -5899,6 +6381,36 @@ model RaiPolicyListResult {
   @pageItems
   @identifiers(#["name"])
   value?: RaiPolicy[];
+}
+
+/**
+ * The list of account-scoped reusable Rego resources.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiRegoListResult {
+  /** The link used to get the next page. */
+  @nextLink
+  nextLink?: string;
+
+  /** The Rego resources in this page. */
+  @pageItems
+  @identifiers(#["name"])
+  value: RaiRego[];
+}
+
+/**
+ * The list of account-scoped RAI bindings.
+ */
+@added(Versions.v2026_09_15_preview)
+model RaiBindingListResult {
+  /** The link used to get the next page. */
+  @nextLink
+  nextLink?: string;
+
+  /** The RAI bindings in this page. */
+  @pageItems
+  @identifiers(#["name"])
+  value: RaiBinding[];
 }
 @@identifiers(ResourceSkuListResult.value, #["resourceType", "name", "kind"]);
 
